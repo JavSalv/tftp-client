@@ -6,13 +6,11 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/ip.h>
+#include <netinet/in.h>
 #include <unistd.h>
 
-#pragma pack(2)
-
-
 #define ASSERT(_bool, ...) do{if (!(_bool)){ fprintf(stderr, __VA_ARGS__); exit(EXIT_FAILURE);}}while(0);
-#define VERBOSE_MSG(msg,...) do{if(verbose_flag) fprintf(stdout,msg,__VA_ARGS__);}while(0);
+#define VERBOSE_MSG(_msg,...) do{if(verbose_flag) fprintf(stdout,_msg,__VA_ARGS__);}while(0);
 
 #define RRQ (unsigned short)0x01 // [opcode-2B][filename-xB][0(EOS)-1B][mode-yB][0(EOS)-1B]
 #define WRQ (unsigned short)0x02 // [opcode-2B][filename-xB][0(EOS)-1B][mode-yB][0(EOS)-1B]
@@ -21,24 +19,87 @@
 #define ERROR (unsigned short)0x05 // [opcode-2B][errcode-2B][errstring-zb][0(EOS)-1B]
 
 #define SERVER_PORT 69
+#define MAX_BLOCKSIZE 512
 
 int verbose_flag = 0;
 
 
+static inline int check_opcode(char* payload, unsigned short opcode){
+    return (payload[0] & 0xf0) | (payload[1] & 0x0f) == opcode;
+}
+
+//TODO: funcion create_request para RRQ y WRQ
 
 
 void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* filename){
+    int aux;
+    FILE* dest_file;
+    socklen_t addrlen;
+    unsigned short block_num = 0;
+    unsigned short curr_block = 1;
+    unsigned int block_lenght;
+    char* msg_in;
+    char* msg_out;
+    int rrq_size = 2+strlen(filename)+1+strlen("aa")+1;
 
-    char* rrq_payload = (char*)malloc(2+strlen(filename)+1+strlen("aa")+1);
+    msg_out = (char*)malloc(rrq_size);
 
-    rrq_payload[0]=0xf0 & RRQ;
-    rrq_payload[1]=0x0f & RRQ;
-
-    strcpy(rrq_payload+2,filename);
-
-    //De momento solo modo octet
-    strcpy(rrq_payload+2+strlen(filename)+1,"octet");
+    //Rellenamos payload
+    msg_out[0]=0xf0 & RRQ;
+    msg_out[1]=0x0f & RRQ;
+    strcpy(msg_out+2,filename);
+    strcpy(msg_out+2+strlen(filename)+1,"octet"); //De momento solo modo octet
     //Payload completo
+
+    //TODO: ERROR aqui?? Por que??
+    aux = sendto(sockfd,msg_out,rrq_size,0,(struct sockaddr*)server_addr,sizeof(&server_addr));
+    ASSERT(aux != -1, "Error enviando RRQ: %s\n",strerror(errno));
+    free(msg_out);
+
+    //Recibir posible error/primer block
+    msg_in = (char*)malloc(MAX_BLOCKSIZE+4); //Reservamos espacio para un bloque entero,2 bytes de opcode y 2 de blocknum.
+    msg_out = (char*)malloc(4); //Reservamos espacio para el ack;
+    dest_file = fopen(filename,"wb");
+    do{
+        //Recibimos mensaje: Block/Err
+        aux = recvfrom(sockfd,msg_in,MAX_BLOCKSIZE+4,0,(struct sockaddr*) server_addr,&addrlen);
+        ASSERT(aux != -1, "Error recibiendo mensaje: %s\n",strerror(errno));
+
+        //Comprobamos si es error
+        if(check_opcode(msg_in,ERROR)){
+            fprintf(stderr,"Error recibiendo archivo: errcode %s (%s)\n",msg_in+2,msg_in+4);
+            exit(EXIT_FAILURE);
+            //Salimos, liberamos mem?
+        }
+        //TODO: Comprobar si es otra cosa a parte de error.
+
+        block_num = (unsigned char)msg_in[2]*256 + (unsigned char) msg_in[3]; //Calculamos el numero de bloque recibido.
+        //Comprobamos si el bloque llega en orden.
+        ASSERT(block_num == curr_block,"Error recibido bloque desordenado\n");
+
+        //Escribimos el bloque en el archivo.
+        block_lenght = aux - 4;
+        fwrite(msg_in+4, sizeof(char),block_lenght,dest_file);
+
+        //Enviamos ack;
+        msg_out[0]=0xf0 & ACK;
+        msg_out[1]=0x0f & ACK;
+        msg_out[2]=0xf0 & block_num;
+        msg_out[3]=0x0f & block_num;
+
+        aux = sendto(sockfd,msg_out,4,0,(struct sockaddr*)server_addr,addrlen);
+        ASSERT(aux != -1, "Error enviando ACK: %s\n",strerror(errno));
+
+    }while(block_lenght == MAX_BLOCKSIZE);
+
+
+    
+
+    
+
+
+    
+
 
     
     
