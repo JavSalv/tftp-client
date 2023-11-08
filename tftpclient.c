@@ -28,7 +28,17 @@ static inline int check_opcode(char* payload, unsigned short opcode){
     return (payload[0] & 0xf0) | (payload[1] & 0x0f) == opcode;
 }
 
-//TODO: funcion create_request para RRQ y WRQ
+//Genera una petición RRQ o WRQ. Devuelve el payload y almacena su longitud en payload_size.
+char* create_request(const char* filename, const char* mode, unsigned short opcode, int* payload_size){
+    int size = 2+strlen(filename)+1+strlen(mode)+1;
+    char *payload = (char*)malloc(size);
+    payload[0]=0xf0 & opcode;
+    payload[1]=0x0f & opcode;
+    strcpy(payload+2,filename);
+    strcpy(payload+2+strlen(filename)+1,mode);
+    *payload_size = size;
+    return payload;
+}
 
 
 void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* filename){
@@ -39,17 +49,9 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     unsigned short curr_block = 1;
     unsigned int block_lenght;
     char* msg_in;
-    char* msg_out;
-    int rrq_size = 2+strlen(filename)+1+strlen("aa")+1;
+    int rrq_size;
 
-    msg_out = (char*)malloc(rrq_size);
-
-    //Rellenamos payload
-    msg_out[0]=0xf0 & RRQ;
-    msg_out[1]=0x0f & RRQ;
-    strcpy(msg_out+2,filename);
-    strcpy(msg_out+2+strlen(filename)+1,"octet"); //De momento solo modo octet
-    //Payload completo
+    char* msg_out = create_request(filename,"octet",RRQ,&rrq_size);
 
     //TODO: ERROR aqui?? Por que??
     aux = sendto(sockfd,msg_out,rrq_size,0,(struct sockaddr*)server_addr,sizeof(&server_addr));
@@ -57,8 +59,8 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     free(msg_out);
 
     //Recibir posible error/primer block
-    msg_in = (char*)malloc(MAX_BLOCKSIZE+4); //Reservamos espacio para un bloque entero,2 bytes de opcode y 2 de blocknum.
-    msg_out = (char*)malloc(4); //Reservamos espacio para el ack;
+    msg_in = (char*)malloc(MAX_BLOCKSIZE+4);    //Reservamos espacio para un bloque entero,2 bytes de opcode y 2 de blocknum.
+    msg_out = (char*)malloc(4);                 //Reservamos espacio para el ack;
     dest_file = fopen(filename,"wb");
     do{
         //Recibimos mensaje: Block/Err
@@ -75,7 +77,7 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
 
         block_num = (unsigned char)msg_in[2]*256 + (unsigned char) msg_in[3]; //Calculamos el numero de bloque recibido.
         //Comprobamos si el bloque llega en orden.
-        ASSERT(block_num == curr_block,"Error recibido bloque desordenado\n");
+        ASSERT(block_num == curr_block,"Error: recibido bloque desordenado\n");
 
         //Escribimos el bloque en el archivo.
         block_lenght = aux - 4;
@@ -92,16 +94,10 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
 
     }while(block_lenght == MAX_BLOCKSIZE);
 
-
-    
-
-    
-
-
-    
-
-
-    
+    printf("El bloque %d era el último: cerramos el fichero.\n",block_num);
+    free(msg_out);
+    free(msg_in);
+    close(dest_file);
     
 }
 
@@ -145,5 +141,7 @@ int main(int argc, char** argv){
     else if (strcmp(argv[2], "-w") == 0)
     {
     }
+
+    return 0;
 }
 
