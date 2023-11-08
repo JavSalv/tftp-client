@@ -58,7 +58,7 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     ASSERT(aux != -1, "Error enviando RRQ: %s\n",strerror(errno));
     free(msg_out);
 
-    //Recibir posible error/primer block
+    //Recibir posible error/primer bloque.
     msg_in = (char*)malloc(MAX_BLOCKSIZE+4);    //Reservamos espacio para un bloque entero,2 bytes de opcode y 2 de blocknum.
     msg_out = (char*)malloc(4);                 //Reservamos espacio para el ack;
     dest_file = fopen(filename,"wb");
@@ -73,11 +73,14 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
             exit(EXIT_FAILURE);
             //Salimos, liberamos mem?
         }
-        //TODO: Comprobar si es otra cosa a parte de error.
+        //Comprobamos si el paquete recibido es de datos
+        ASSERT(check_opcode(msg_in,DATA),"Recibido paquete que no era de datos.\n");
 
-        block_num = (unsigned char)msg_in[2]*256 + (unsigned char) msg_in[3]; //Calculamos el numero de bloque recibido.
+        //Calculamos el numero de bloque recibido.
+        block_num = (unsigned char)msg_in[2]*256 + (unsigned char) msg_in[3]; 
+
         //Comprobamos si el bloque llega en orden.
-        ASSERT(block_num == curr_block,"Error: recibido bloque desordenado\n");
+        ASSERT(block_num == curr_block++,"Error: recibido bloque desordenado\n");
 
         //Escribimos el bloque en el archivo.
         block_lenght = aux - 4;
