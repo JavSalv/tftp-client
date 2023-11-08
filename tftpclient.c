@@ -8,6 +8,7 @@
 #include <netinet/ip.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <netdb.h>
 
 #define ASSERT(_bool, ...) do{if (!(_bool)){ fprintf(stderr, __VA_ARGS__); exit(EXIT_FAILURE);}}while(0);
 #define VERBOSE_MSG(_msg,...) do{if(verbose_flag) fprintf(stdout,_msg,__VA_ARGS__);}while(0);
@@ -18,7 +19,6 @@
 #define ACK (unsigned short)0x04 // [opcode-2B][block#-2B]
 #define ERROR (unsigned short)0x05 // [opcode-2B][errcode-2B][errstring-zb][0(EOS)-1B]
 
-#define SERVER_PORT 69
 #define MAX_BLOCKSIZE 512
 
 int verbose_flag = 0;
@@ -121,7 +121,10 @@ int main(int argc, char** argv){
 
     ASSERT((inet_aton(argv[1], &addr) == 1), "Uso: %s ip_servidor {-r|-w} archivo [-v]\n",argv[0]);
 
-    server_addr.sin_port = SERVER_PORT;
+    aux = getservbyname("tftp","udp");
+    ASSERT(aux != NULL, "Error encontrando el puerto asociado al servicio tftp.\n");
+
+    server_addr.sin_port = aux;
     server_addr.sin_addr = addr;
     server_addr.sin_family = AF_INET;
 
