@@ -142,7 +142,7 @@ int main(int argc, char** argv){
 
     aux = bind(sockfd, (struct sockaddr *)&my_addr, sizeof(my_addr));
     ASSERT(aux == 0, "Error vinculando socket: %s\n", strerror(errno));
-    printf("%s",argv[2]);
+
     if (strcmp(argv[2], "-r") == 0)
     {
         tftp_readfile(sockfd, &server_addr, argv[3]);
@@ -150,7 +150,8 @@ int main(int argc, char** argv){
     else if (strcmp(argv[2], "-w") == 0)
     {
     }
-
+    printf("Transferencia completada\n");
+    close(sockfd);
     return 0;
 }
 
