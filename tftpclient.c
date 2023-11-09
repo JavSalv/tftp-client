@@ -44,7 +44,7 @@ char* create_request(const char* filename, const char* mode, unsigned short opco
 void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* filename){
     int aux;
     FILE* dest_file;
-    socklen_t addrlen;
+    socklen_t addrlen = sizeof(&server_addr);
     unsigned short block_num = 0;
     unsigned short curr_block = 1;
     unsigned int block_lenght;
@@ -54,7 +54,7 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     char* msg_out = create_request(filename,"octet",RRQ,&rrq_size);
 
     //TODO: ERROR aqui?? Por que??
-    aux = sendto(sockfd,msg_out,rrq_size,0,(struct sockaddr*)server_addr,sizeof(&server_addr));
+    aux = sendto(sockfd,msg_out,rrq_size,0,(struct sockaddr*)server_addr,addrlen);
     ASSERT(aux != -1, "Error enviando RRQ: %s\n",strerror(errno));
     free(msg_out);
 
