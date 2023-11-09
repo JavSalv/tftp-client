@@ -43,7 +43,7 @@ char* create_request(const char* filename, const char* mode, unsigned short opco
 
 void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* filename){
     int aux;
-    FILE* dest_file;
+    FILE* dest_file = NULL;
     socklen_t addrlen = sizeof(*server_addr);
     unsigned short block_num = 0;
     unsigned short curr_block = 1;
@@ -62,11 +62,16 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     //Recibir posible error/primer bloque.
     msg_in = (char*)malloc(MAX_BLOCKSIZE+4);    //Reservamos espacio para un bloque entero,2 bytes de opcode y 2 de blocknum.
     msg_out = (char*)malloc(4);                 //Reservamos espacio para el ack;
-    dest_file = fopen(filename,"wb");
+    
     do{
         //Recibimos mensaje: Block/Err
         aux = recvfrom(sockfd,msg_in,MAX_BLOCKSIZE+4,0,(struct sockaddr*) server_addr,&addrlen);
         ASSERT(aux != -1, "Error recibiendo mensaje: %s\n",strerror(errno));
+        
+        if(dest_file == NULL){
+            dest_file = fopen(filename,"wb");
+        }
+
 
         //Comprobamos si es error
         if(check_opcode(msg_in,ERROR)){
