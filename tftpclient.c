@@ -25,7 +25,7 @@ int verbose_flag = 0;
 
 
 static inline int check_opcode(char* payload, unsigned short opcode){
-    return (payload[0] & 0xf0) | (payload[1] & 0x0f) == opcode;
+    return ((payload[0] & 0xf0) | (payload[1] & 0x0f)) == opcode;
 }
 
 //Genera una petición RRQ o WRQ. Devuelve el payload y almacena su longitud en payload_size.
@@ -100,7 +100,7 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     printf("El bloque %d era el último: cerramos el fichero.\n",block_num);
     free(msg_out);
     free(msg_in);
-    close(dest_file);
+    fclose(dest_file);
     
 }
 
@@ -108,6 +108,7 @@ int main(int argc, char** argv){
 
     int aux;
     int sockfd;
+    struct servent* service;
     struct in_addr addr;
     struct sockaddr_in server_addr;
     struct sockaddr_in my_addr = {.sin_family = AF_INET, .sin_port = 0, .sin_addr.s_addr = INADDR_ANY};
@@ -120,10 +121,10 @@ int main(int argc, char** argv){
 
     ASSERT((inet_aton(argv[1], &addr) == 1), "Uso: %s ip_servidor {-r|-w} archivo [-v]\n",argv[0]);
 
-    aux = getservbyname("tftp","udp");
-    ASSERT(aux != NULL, "Error encontrando el puerto asociado al servicio tftp.\n");
+    service = getservbyname("tftp","udp");
+    ASSERT(service != NULL, "Error encontrando el puerto asociado al servicio tftp.\n");
 
-    server_addr.sin_port = aux;
+    server_addr.sin_port = service->s_port;
     server_addr.sin_addr = addr;
     server_addr.sin_family = AF_INET;
 
