@@ -57,6 +57,8 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     ASSERT(aux != -1, "Error enviando RRQ: %s\n",strerror(errno));
     free(msg_out);
 
+    printf("Enviada solicitud de lectura de \"%s\" a servidor tftp en %s\n",filename,inet_ntoa(server_addr->sin_addr));
+
     //Recibir posible error/primer bloque.
     msg_in = (char*)malloc(MAX_BLOCKSIZE+4);    //Reservamos espacio para un bloque entero,2 bytes de opcode y 2 de blocknum.
     msg_out = (char*)malloc(4);                 //Reservamos espacio para el ack;
@@ -78,6 +80,8 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
         //Calculamos el numero de bloque recibido.
         block_num = (unsigned char)msg_in[2]*256 + (unsigned char) msg_in[3]; 
 
+        VERBOSE_MSG("Recibido bloque de datos número %u\n",block_num);
+
         //Comprobamos si el bloque llega en orden.
         ASSERT(block_num == curr_block++,"Error: recibido bloque desordenado\n");
 
@@ -94,9 +98,11 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
         aux = sendto(sockfd,msg_out,4,0,(struct sockaddr*)server_addr,addrlen);
         ASSERT(aux != -1, "Error enviando ACK: %s\n",strerror(errno));
 
+        VERBOSE_MSG("Enviado ACK del block %u\n",block_num);
+
     }while(block_lenght == MAX_BLOCKSIZE);
 
-    printf("El bloque %d era el último: cerramos el fichero.\n",block_num);
+    VERBOSE_MSG("El bloque %u era el último: cerramos el fichero.\n",block_num);
     free(msg_out);
     free(msg_in);
     fclose(dest_file);
