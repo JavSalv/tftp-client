@@ -34,9 +34,9 @@ static inline unsigned short get_payloadBlockNum(char* payload){
 }
 
 //Genera una petición RRQ o WRQ. Devuelve el payload y almacena su longitud en payload_size.
-unsigned char* create_request(const char* filename, const char* mode, unsigned short opcode, int* payload_size){
+char* create_request(const char* filename, const char* mode, unsigned short opcode, int* payload_size){
     int size = 2+strlen(filename)+1+strlen(mode)+1;
-    unsigned char *payload = (unsigned char*)malloc(size);
+    char *payload = (char*)malloc(size);
     payload[0]=0xf0 & opcode;
     payload[1]=0x0f & opcode;
     strcpy(payload+2,filename);
@@ -57,13 +57,13 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     int aux;
     FILE* dest_file = NULL;
     socklen_t addrlen = sizeof(*server_addr);
-    unsigned short block_num;
-    unsigned short curr_block = 1;
-    unsigned int block_lenght;
-    unsigned * msg_in;
+    short block_num;
+    short curr_block = 1;
+    int block_lenght;
+    char* msg_in;
     int rrq_size;
 
-    unsigned char* msg_out = create_request(filename,"octet",RRQ,&rrq_size);
+    char* msg_out = create_request(filename,"octet",RRQ,&rrq_size);
 
     print_msg(msg_out,rrq_size);
 
@@ -135,23 +135,27 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     int aux;
     FILE* source_file = NULL;
     socklen_t addrlen = sizeof(*server_addr);
-    unsigned short block_num;
-    unsigned short curr_block = 1;
-    unsigned int block_lenght;
-    unsigned char* msg_in;
+    short block_num;
+    short curr_block = 1;
+    int block_lenght;
+    char* msg_in;
     int wrq_size;
 
-    unsigned char* msg_out = create_request(filename,"octet",WRQ,&wrq_size);
+    //Comprobamos primero si el fichero existe.
+    source_file = fopen(filename,"rb");
+    ASSERT(source_file != NULL,"Error: No existe el fichero \"%s\"\n",filename);
 
-    aux = sendto(sockfd,msg_out,wrq_size,0,(struct sockadd_int*) server_addr, addrlen);
+    char* msg_out = create_request(filename,"octet",WRQ,&wrq_size);
+
+    aux = sendto(sockfd,msg_out,wrq_size,0,(struct sockaddr*) server_addr, addrlen);
     ASSERT(aux != -1, "Error enviando WQR al servidor: %s\n",strerror(errno));
     free(msg_out);
 
     printf("Enviada solicitud de escritura de \"%s\" a servidor tftp en %s\n",filename,inet_ntoa(server_addr->sin_addr));
 
     //Recibimos ACK del block 0 o error;
-    msg_in = (unsigned char*)malloc(4);
-    aux = recvfrom(sockfd,msg_in,4,0,(struct sockadd_int*) server_addr, &addrlen);
+    msg_in = (char*)malloc(4);
+    aux = recvfrom(sockfd,msg_in,4,0,(struct sockaddr*) server_addr, &addrlen);
 
     if(check_opcode(msg_in,ERROR)){
         //TODO: MANEJO DE ERROR AQUÍ
@@ -159,6 +163,10 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     //Comprobamos que es ack y además corresponde con el bloque 0;
     ASSERT(check_opcode(msg_in,ACK) && get_payloadBlockNum(msg_in) == 0,"Recibido paquete incorrecto\n");
     
+    //Enviamos primer bloque.
+    msg_out = (char*) malloc(MAX_BLOCKSIZE+4);
+    
+
 
 
 }
