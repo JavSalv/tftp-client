@@ -24,6 +24,23 @@
 
 int verbose_flag = 0;
 
+const char* error_msgs[]={
+    "errstring",
+    "Fichero no encontrado.",
+    "Violación de acceso.",
+    "Espacio de almacenamiento lleno.",
+    "Operación TFTP ilegal.",
+    "Identificador de transferencia desconocido.",
+    "El fichero ya existe.",
+    "Usuario desconocido."
+};
+
+static inline char* get_error_msg(char* payload){
+    unsigned short errcode = get_payloadBlockNum(payload);
+    char* errmsg = (errcode > 0  && errcode < 8) ? error_msgs[errcode] : payload+4;
+    return errmsg;
+}
+
 //Comprueba si el opcode de payload coincide con el opcode introducido.
 static inline int check_opcode(char* payload, unsigned short opcode){
     return ((payload[0] & 0xf0) | (payload[1] & 0x0f)) == opcode;
@@ -91,10 +108,9 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
 
         //Comprobamos si es error
         if(check_opcode(msg_in,ERROR)){
-            //fprintf(stderr,"Error recibiendo archivo: errcode %s (%s)\n",msg_in+2,msg_in+4);//TODO: ESTO ESTAM MAL
-            exit(EXIT_FAILURE);
-            //Salimos, liberamos mem?
+            ASSERT(0,"Recibido paquete de error: %s",get_error_msg(msg_in));
         }
+
         //Comprobamos si el paquete recibido es de datos
         ASSERT(check_opcode(msg_in,DATA),"Recibido paquete que no era de datos.\n");
 
@@ -152,14 +168,16 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     printf("Enviada solicitud de escritura de \"%s\" a servidor tftp en %s\n",filename,inet_ntoa(server_addr->sin_addr));
 
     msg_in = (char*)malloc(4);
+    msg_out = (char*) malloc(MAX_BLOCKSIZE+4);
 
     //El bucle se ejecutará hasta recibir el ACK del último bloque.
     while(1){
         //Recibimos ACK del bloque o error
         aux = recvfrom(sockfd,msg_in,4,0,(struct sockaddr*) server_addr, &addrlen);
 
+        //Comprobamos si es error
         if(check_opcode(msg_in,ERROR)){
-            //TODO: MANEJO DE ERROR AQUÍ
+            ASSERT(0,"Recibido paquete de error: %s",get_error_msg(msg_in));
         }
 
         print_msg(msg_in, aux);
@@ -172,12 +190,10 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
         if(block_lenght != MAX_BLOCKSIZE){
             break;
         }
-        
+
         block_num++;
 
         //Enviamos primer bloque.
-        msg_out = (char*) malloc(MAX_BLOCKSIZE+4);
-
         msg_out[0]=0xf0 & DATA;
         msg_out[1]=0x0f & DATA;
         msg_out[2]=0xf0 & block_num;
