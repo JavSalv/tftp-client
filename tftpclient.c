@@ -57,8 +57,8 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     int aux;
     FILE* dest_file = NULL;
     socklen_t addrlen = sizeof(*server_addr);
-    short block_num;
-    short curr_block = 1;
+    unsigned short block_num;
+    unsigned short curr_block = 1;
     int block_lenght;
     char* msg_in;
     int rrq_size;
@@ -88,7 +88,6 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
         if(dest_file == NULL){
             dest_file = fopen(filename,"wb");
         }
-
 
         //Comprobamos si es error
         if(check_opcode(msg_in,ERROR)){
@@ -135,9 +134,8 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     int aux;
     FILE* source_file = NULL;
     socklen_t addrlen = sizeof(*server_addr);
-    short block_num;
-    short curr_block = 1;
-    int block_lenght;
+    unsigned short block_num = 0;
+    int block_lenght = MAX_BLOCKSIZE;
     char* msg_in;
     int wrq_size;
 
@@ -153,19 +151,40 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
 
     printf("Enviada solicitud de escritura de \"%s\" a servidor tftp en %s\n",filename,inet_ntoa(server_addr->sin_addr));
 
-    //Recibimos ACK del block 0 o error;
     msg_in = (char*)malloc(4);
-    aux = recvfrom(sockfd,msg_in,4,0,(struct sockaddr*) server_addr, &addrlen);
 
-    if(check_opcode(msg_in,ERROR)){
-        //TODO: MANEJO DE ERROR AQUÍ
+    //El bucle se ejecutará hasta recibir el ACK del último bloque.
+    while(1){
+        //Recibimos ACK del bloque o error
+        aux = recvfrom(sockfd,msg_in,4,0,(struct sockaddr*) server_addr, &addrlen);
+
+        if(check_opcode(msg_in,ERROR)){
+            //TODO: MANEJO DE ERROR AQUÍ
+        }
+        //Comprobamos que es ack y además corresponde con el bloque correcto;
+        ASSERT(check_opcode(msg_in,ACK) && get_payloadBlockNum(msg_in) == block_num,"Recibido paquete incorrecto\n");
+        if(block_lenght != MAX_BLOCKSIZE){
+            break;
+        }
+
+        //Enviamos primer bloque.
+        msg_out = (char*) malloc(MAX_BLOCKSIZE+4);
+
+        msg_out[0]=0xf0 & DATA;
+        msg_out[1]=0x0f & DATA;
+        msg_out[2]=0xf0 & block_num;
+        msg_out[3]=0x0f & block_num;
+
+        block_lenght = fread(msg_out+4,sizeof(char),MAX_BLOCKSIZE,source_file);
+
+        aux = sendto(sockfd,msg_out,block_lenght+4,0,(struct sockaddr*) server_addr, addrlen);
+        ASSERT(aux != -1, "Error enviando bloque de datos: %s\n",strerror(errno));
+        block_num++;
     }
-    //Comprobamos que es ack y además corresponde con el bloque 0;
-    ASSERT(check_opcode(msg_in,ACK) && get_payloadBlockNum(msg_in) == 0,"Recibido paquete incorrecto\n");
-    
-    //Enviamos primer bloque.
-    msg_out = (char*) malloc(MAX_BLOCKSIZE+4);
-    
+    VERBOSE_MSG("El bloque %u era el último: cerramos el fichero.\n",block_num);
+    free(msg_out);
+    free(msg_in);
+    fclose(source_file);
 
 
 
@@ -211,6 +230,10 @@ int main(int argc, char** argv){
     }
     else if (strcmp(argv[2], "-w") == 0)
     {
+        tftp_sendfile(sockfd,&server_addr,argv[3]);
+    }
+    else{
+        ASSERT(0, "Uso: %s ip_servidor {-r|-w} archivo [-v]\n",argv[0]);
     }
     printf("Transferencia completada\n");
     close(sockfd);
