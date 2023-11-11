@@ -166,9 +166,14 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
 
         //Comprobamos que es ack y además corresponde con el bloque correcto;
         ASSERT(check_opcode(msg_in,ACK) && get_payloadBlockNum(msg_in) == block_num,"Recibido paquete incorrecto\n");
+
+        VERBOSE_MSG("Recibido ACK del bloque %u\n",block_num);
+
         if(block_lenght != MAX_BLOCKSIZE){
             break;
         }
+        
+        block_num++;
 
         //Enviamos primer bloque.
         msg_out = (char*) malloc(MAX_BLOCKSIZE+4);
@@ -184,7 +189,8 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
 
         aux = sendto(sockfd,msg_out,block_lenght+4,0,(struct sockaddr*) server_addr, addrlen);
         ASSERT(aux != -1, "Error enviando bloque de datos: %s\n",strerror(errno));
-        block_num++;
+
+        VERBOSE_MSG("Enviado bloque de datos número %u\n",block_num)
     }
     VERBOSE_MSG("El bloque %u era el último: cerramos el fichero.\n",block_num);
     free(msg_out);
