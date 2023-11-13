@@ -35,19 +35,20 @@ const char* error_msgs[]={
     "Usuario desconocido."
 };
 
-static inline char* get_error_msg(char* payload){
+//Devuelbe el número del bloque al que corresponde el paquete. Se puede usar con paquetes tipo DATA y ACK.
+static inline unsigned short get_payloadBlockNum(const char* payload){
+    return(((unsigned char)payload[2])*256 + (unsigned char)payload[3]);
+}
+
+static inline const char* get_error_msg(const char* payload){
     unsigned short errcode = get_payloadBlockNum(payload);
-    char* errmsg = (errcode > 0  && errcode < 8) ? error_msgs[errcode] : payload+4;
+    const char* errmsg = (errcode > 0  && errcode < 8) ? error_msgs[errcode] : payload+4;
     return errmsg;
 }
 
 //Comprueba si el opcode de payload coincide con el opcode introducido.
 static inline int check_opcode(char* payload, unsigned short opcode){
     return ((payload[0] & 0xf0) | (payload[1] & 0x0f)) == opcode;
-}
-//Devuelbe el número del bloque al que corresponde el paquete. Se puede usar con paquetes tipo DATA y ACK.
-static inline unsigned short get_payloadBlockNum(char* payload){
-    return(((unsigned char)payload[2])*256 + (unsigned char)payload[3]);
 }
 
 //Genera una petición RRQ o WRQ. Devuelve el payload y almacena su longitud en payload_size.
