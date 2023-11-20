@@ -1,4 +1,4 @@
-
+// Practica Tema 7: Salvador Peñacoba, Javier
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -40,6 +40,7 @@ static inline unsigned short get_payloadBlockNum(const char* payload){
     return(((unsigned char)payload[2])*256 + (unsigned char)payload[3]);
 }
 
+//Devuelve el mensaje de error asociado a un paquete tipo ERR.
 static inline const char* get_error_msg(const char* payload){
     unsigned short errcode = get_payloadBlockNum(payload);
     const char* errmsg = (errcode > 0  && errcode < 8) ? error_msgs[errcode] : payload+4;
@@ -62,14 +63,6 @@ char* create_request(const char* filename, const char* mode, unsigned short opco
     strcpy(payload+2+strlen(filename)+1,mode);
     *payload_size = size;
     return payload;
-}
-
-static inline void print_msg(char* msg, int len){
-    int i;
-    for(i = 0; i<len;i++){
-        printf("%hhx ",msg[i]);
-    }
-    printf("\n");
 }
 
 void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* filename){
@@ -146,7 +139,7 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     free(msg_in);
     fclose(dest_file);
 
-    printf("Bytes recibidos: %u\n",byte_count);
+    printf("Fichero \"%s\" recibido correctamente.\n Bytes recibidos: %u\n",byte_count,filename);
     
 }
 
@@ -166,6 +159,7 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
 
     char* msg_out = create_request(filename,"octet",WRQ,&wrq_size);
 
+    //Enviamos solicitud WRQ
     aux = sendto(sockfd,msg_out,wrq_size,0,(struct sockaddr*) server_addr, addrlen);
     ASSERT(aux != -1, "Error enviando WQR al servidor: %s\n",strerror(errno));
     free(msg_out);
@@ -194,7 +188,7 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
 
         block_num++;
 
-        //Enviamos primer bloque.
+        //Enviamos bloque
         msg_out[0]=0xff00 & DATA;                     
         msg_out[1]=0x00ff & DATA;
         msg_out[2]= (block_num >> 8) & 0xff;
@@ -214,7 +208,7 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     free(msg_in);
     fclose(source_file);
 
-    printf("Bytes enviados: %u\n",byte_count);
+    printf("Fichero \"%s\" enviado correctamente.\n Bytes enviados: %u\n",byte_count,filename);
 }
 
 int main(int argc, char** argv){
@@ -263,7 +257,7 @@ int main(int argc, char** argv){
     else{
         ASSERT(0, "Uso: %s ip_servidor {-r|-w} archivo [-v]\n",argv[0]);
     }
-    printf("Transferencia completada\n");
+
     close(sockfd);
     return 0;
 }
