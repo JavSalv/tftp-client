@@ -35,7 +35,7 @@ const char* error_msgs[]={
     "Usuario desconocido."
 };
 
-//Devuelbe el número del bloque al que corresponde el paquete. Se puede usar con paquetes tipo DATA y ACK.
+//Devuelve el número del bloque al que corresponde el paquete. Se puede usar con paquetes tipo DATA y ACK.
 static inline unsigned short get_payloadBlockNum(const char* payload){
     return(((unsigned char)payload[2])*256 + (unsigned char)payload[3]);
 }
@@ -48,8 +48,9 @@ static inline const char* get_error_msg(const char* payload){
 
 //Comprueba si el opcode de payload coincide con el opcode introducido.
 static inline int check_opcode(char* payload, unsigned short opcode){
-    return ((payload[0] & 0xf0) | (payload[1] & 0x0f)) == opcode;
+    return ((payload[0] << 8) | (payload[1] & 0xff)) == opcode;
 }
+
 
 //Genera una petición RRQ o WRQ. Devuelve el payload y almacena su longitud en payload_size.
 char* create_request(const char* filename, const char* mode, unsigned short opcode, int* payload_size){
@@ -77,6 +78,7 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     socklen_t addrlen = sizeof(*server_addr);
     unsigned short block_num;
     unsigned short curr_block = 1;
+    unsigned int byte_count = 0;
     int block_lenght;
     char* msg_in;
     int rrq_size;
@@ -99,7 +101,6 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
         ASSERT(aux != -1, "Error recibiendo mensaje: %s\n",strerror(errno));
         
         
-
         //Crearemos el archivo una vez se reciba el primer bloque.
         if(dest_file == NULL){
             dest_file = fopen(filename,"wb");
@@ -124,12 +125,14 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
         //Escribimos el bloque en el archivo.
         block_lenght = aux - 4;
         fwrite(msg_in+4, sizeof(char),block_lenght,dest_file);
+        byte_count += block_lenght;
+
 
         //Enviamos ack;
         msg_out[0]=0xf0 & ACK;
         msg_out[1]=0x0f & ACK;
-        msg_out[2]= block_num / 256;
-        msg_out[3]= block_num % 256;
+        msg_out[2]= (block_num >> 8) & 0xff;
+        msg_out[3]= block_num & 0xff;
 
         aux = sendto(sockfd,msg_out,4,0,(struct sockaddr*)server_addr,addrlen);
         ASSERT(aux != -1, "Error enviando ACK: %s\n",strerror(errno));
@@ -142,6 +145,8 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     free(msg_out);
     free(msg_in);
     fclose(dest_file);
+
+    printf("Bytes recibidos: %u\n",byte_count);
     
 }
 
@@ -150,6 +155,7 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     FILE* source_file = NULL;
     socklen_t addrlen = sizeof(*server_addr);
     unsigned short block_num = 0;
+    unsigned int byte_count = 0;
     int block_lenght = MAX_BLOCKSIZE;
     char* msg_in;
     int wrq_size;
@@ -179,25 +185,24 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
             ASSERT(0,"Recibido paquete de error: %s",get_error_msg(msg_in));
         }
 
-
         //Comprobamos que es ack y además corresponde con el bloque correcto;
         ASSERT(check_opcode(msg_in,ACK) && get_payloadBlockNum(msg_in) == block_num,"Recibido paquete incorrecto\n");
 
         VERBOSE_MSG("Recibido ACK del bloque %u\n",block_num);
 
-        if(block_lenght != MAX_BLOCKSIZE){
-            break;
-        }
+        if(block_lenght != MAX_BLOCKSIZE) break;
 
         block_num++;
 
         //Enviamos primer bloque.
-        msg_out[0]=0xf0 & DATA;
-        msg_out[1]=0x0f & DATA;
-        msg_out[2]= block_num / 256;
-        msg_out[3]= block_num % 256;
+        msg_out[0]=0xff00 & DATA;                     
+        msg_out[1]=0x00ff & DATA;
+        msg_out[2]= (block_num >> 8) & 0xff;
+        msg_out[3]= block_num & 0xff;
 
         block_lenght = fread(msg_out+4,sizeof(char),MAX_BLOCKSIZE,source_file);
+
+        byte_count += block_lenght;
 
         aux = sendto(sockfd,msg_out,block_lenght+4,0,(struct sockaddr*) server_addr, addrlen);
         ASSERT(aux != -1, "Error enviando bloque de datos: %s\n",strerror(errno));
@@ -208,6 +213,8 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     free(msg_out);
     free(msg_in);
     fclose(source_file);
+
+    printf("Bytes recibidos: %u\n",byte_count);
 
 
 
