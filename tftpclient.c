@@ -55,7 +55,7 @@ static inline int check_opcode(char* payload, unsigned short opcode){
 //Genera una petición RRQ o WRQ. Devuelve el payload y almacena su longitud en payload_size.
 char* create_request(const char* filename, const char* mode, unsigned short opcode, int* payload_size){
     int size = 2+strlen(filename)+1+strlen(mode)+1;
-    char *payload = (char*)malloc(size);
+    char *payload = (char*)calloc(size,1);
     payload[0]=0xf0 & opcode;
     payload[1]=0x0f & opcode;
     strcpy(payload+2,filename);
@@ -92,8 +92,8 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     printf("Enviada solicitud de lectura de \"%s\" a servidor tftp en %s\n",filename,inet_ntoa(server_addr->sin_addr));
 
     //Recibir posible error/primer bloque.
-    msg_in = (char*)malloc(MAX_BLOCKSIZE+4);    //Reservamos espacio para un bloque entero,2 bytes de opcode y 2 de blocknum.
-    msg_out = (char*)malloc(4);                 //Reservamos espacio para el ack;
+    msg_in = (char*)calloc(MAX_BLOCKSIZE+4,1);    //Reservamos espacio para un bloque entero,2 bytes de opcode y 2 de blocknum.
+    msg_out = (char*)calloc(4,1);                 //Reservamos espacio para el ack;
     
     do{
         //Recibimos mensaje: Block/Err
@@ -172,8 +172,8 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
 
     printf("Enviada solicitud de escritura de \"%s\" a servidor tftp en %s\n",filename,inet_ntoa(server_addr->sin_addr));
 
-    msg_in = (char*)malloc(4);
-    msg_out = (char*) malloc(MAX_BLOCKSIZE+4);
+    msg_in = (char*)calloc(4,1);
+    msg_out = (char*) calloc(MAX_BLOCKSIZE+4,1);
 
     //El bucle se ejecutará hasta recibir el ACK del último bloque.
     while(1){
@@ -214,10 +214,7 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     free(msg_in);
     fclose(source_file);
 
-    printf("Bytes recibidos: %u\n",byte_count);
-
-
-
+    printf("Bytes enviados: %u\n",byte_count);
 }
 
 int main(int argc, char** argv){
@@ -244,7 +241,8 @@ int main(int argc, char** argv){
     server_addr.sin_addr = addr;
     server_addr.sin_family = AF_INET;
 
-    if(argc == 5 && strcmp(argv[4],"-v")==0){
+    if(argc == 5){
+        ASSERT(strcmp(argv[4],"-v")==0,"Uso: %s ip_servidor {-r|-w} archivo [-v]\n",argv[0]);
         verbose_flag = 1;
     }
 
