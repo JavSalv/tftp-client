@@ -57,8 +57,9 @@ static inline int check_opcode(char* payload, unsigned short opcode){
 char* create_request(const char* filename, const char* mode, unsigned short opcode, int* payload_size){
     int size = 2+strlen(filename)+1+strlen(mode)+1;
     char *payload = (char*)calloc(size,1);
-    payload[0]=0xf0 & opcode;
-    payload[1]=0x0f & opcode;
+    ASSERT(payload != NULL, "Error malloc: %s\n",strerror(errno));
+    payload[0]= (opcode >> 8) & 0xff;
+    payload[1]= opcode & 0xff;
     strcpy(payload+2,filename);
     strcpy(payload+2+strlen(filename)+1,mode);
     *payload_size = size;
@@ -87,6 +88,8 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     //Recibir posible error/primer bloque.
     msg_in = (char*)calloc(MAX_BLOCKSIZE+4,1);    //Reservamos espacio para un bloque entero,2 bytes de opcode y 2 de blocknum.
     msg_out = (char*)calloc(4,1);                 //Reservamos espacio para el ack;
+
+    ASSERT(msg_in != NULL && msg_out != NULL, "Error malloc: %s\n",strerror(errno));
     
     do{
         //Recibimos mensaje: Block/Err
@@ -122,8 +125,8 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
 
 
         //Enviamos ack;
-        msg_out[0]=0xf0 & ACK;
-        msg_out[1]=0x0f & ACK;
+        msg_out[0]= (ACK >> 8) & 0xff;
+        msg_out[1]= ACK & 0xff;
         msg_out[2]= (block_num >> 8) & 0xff;
         msg_out[3]= block_num & 0xff;
 
@@ -139,7 +142,7 @@ void tftp_readfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     free(msg_in);
     fclose(dest_file);
 
-    printf("Fichero \"%s\" recibido correctamente.\n Bytes recibidos: %u\n",byte_count,filename);
+    printf("Fichero \"%s\" recibido correctamente.\n Bytes recibidos: %u\n",filename,byte_count);
     
 }
 
@@ -169,6 +172,8 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     msg_in = (char*)calloc(4,1);
     msg_out = (char*) calloc(MAX_BLOCKSIZE+4,1);
 
+    ASSERT(msg_in != NULL && msg_out != NULL, "Error malloc: %s\n",strerror(errno));
+
     //El bucle se ejecutará hasta recibir el ACK del último bloque.
     while(1){
         //Recibimos ACK del bloque o error
@@ -189,8 +194,8 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
         block_num++;
 
         //Enviamos bloque
-        msg_out[0]=0xff00 & DATA;                     
-        msg_out[1]=0x00ff & DATA;
+        msg_out[0]= (DATA >> 8) & 0xff;
+        msg_out[1]= DATA & 0xff;
         msg_out[2]= (block_num >> 8) & 0xff;
         msg_out[3]= block_num & 0xff;
 
@@ -208,7 +213,7 @@ void tftp_sendfile(int sockfd, struct sockaddr_in* server_addr, const char* file
     free(msg_in);
     fclose(source_file);
 
-    printf("Fichero \"%s\" enviado correctamente.\n Bytes enviados: %u\n",byte_count,filename);
+    printf("Fichero \"%s\" enviado correctamente.\n Bytes enviados: %u\n",filename,byte_count);
 }
 
 int main(int argc, char** argv){
